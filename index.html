@@ -22,6 +22,7 @@
             color: white;
             min-height: 100vh;
             overscroll-behavior: none; 
+            position: relative;
         }
 
         h1, h2, .fantasy-font {
@@ -75,15 +76,28 @@
         @keyframes flash-3 { 0%, 100% { opacity: 1; box-shadow: 0px 4.66667px 24px 3px rgba(247, 0, 148, 1); } 50% { opacity: 0.4; box-shadow: 0px 4.66667px 24px 3px rgba(247, 0, 148, 0.2); } }
 
         /* --- Snow --- */
+        #snow-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1; /* Ensure it's above background but below content */
+        }
+
         .snowflake {
             position: absolute;
-            top: -20px;
             color: #fff;
             user-select: none;
-            z-index: 1;
-            pointer-events: none;
-            will-change: transform, top;
+            will-change: transform;
             text-shadow: 0 0 5px rgba(255,255,255,0.8);
+            top: -50px; /* Start above screen */
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 0.8; }
+            100% { transform: translateY(110vh) rotate(360deg); opacity: 0.3; }
         }
 
         /* --- Glassmorphism & UI --- */
@@ -117,12 +131,34 @@
         .toast-exit { transform: translateX(0); opacity: 1; }
         .toast-exit-active { transform: translateX(100%); opacity: 0; transition: all 0.3s ease-in; }
 
-        /* Music Pulse Animation */
-        .music-playing { animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
-        @keyframes pulse-ring {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        /* Music Controls */
+        .music-controls {
+            transition: width 0.3s ease;
+        }
+        
+        /* Volume Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -4px; 
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
         }
     </style>
 </head>
@@ -136,37 +172,40 @@
     </ul>
 
     <!-- Snow Container -->
-    <div id="snow-container" class="fixed inset-0 pointer-events-none w-full h-full overflow-hidden z-0"></div>
+    <div id="snow-container"></div>
 
-    <!-- Music Player (Requires music.mp3 in the same folder) -->
+    <!-- Music Player (Expects music.mp3) -->
     <audio id="bg-music" loop>
         <source src="music.mp3" type="audio/mp3">
     </audio>
 
-    <!-- UI Controls Wrapper (Top Left & Bottom Left) -->
-    
-    <!-- Real-Time Online Counter (Top Left - Non intrusive) -->
-    <div class="absolute top-4 left-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full glass-panel border-l-2 border-green-500 hover:bg-white/10 transition cursor-default group">
-        <div class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-        </div>
-        <div class="text-xs font-medium text-gray-300 group-hover:text-white transition-colors">
-            <span id="online-count" class="font-mono text-green-300">1</span>
-            <span class="hidden sm:inline">ждут НГ</span>
-            <span class="inline sm:hidden">online</span>
+    <!-- Audio Controls (Bottom Left) -->
+    <div class="fixed bottom-6 left-6 z-40 flex items-center gap-2 p-2 rounded-full glass-panel music-controls" id="audio-panel">
+        <button id="music-btn" onclick="toggleMusic()" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 transition text-gray-400 hover:text-white border-none">
+            <i class="fas fa-volume-mute" id="music-icon"></i>
+        </button>
+        <!-- Volume Slider (Initially hidden or visible) -->
+        <div class="w-0 overflow-hidden transition-all duration-300 flex items-center pr-0" id="volume-container">
+            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" class="w-24 mx-2">
         </div>
     </div>
-
-    <!-- Mute/Unmute Button (Bottom Left) -->
-    <button id="music-btn" onclick="toggleMusic()" class="fixed bottom-6 left-6 z-40 w-10 h-10 rounded-full glass-panel flex items-center justify-center hover:bg-white/20 transition text-gray-400 hover:text-white border-none shadow-lg">
-        <i class="fas fa-volume-mute" id="music-icon"></i>
-    </button>
 
 
     <!-- Main Content -->
     <div class="container mx-auto px-4 z-20 flex flex-col items-center justify-center flex-grow py-12 min-h-[85vh]">
         
+        <!-- Online Counter (Moved to top-left for better visibility) -->
+        <div class="absolute top-4 left-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full glass-panel border-l-2 border-green-500 hover:bg-white/10 transition cursor-default">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <div class="text-xs font-medium text-gray-300">
+                <span id="online-count" class="font-mono text-green-300 text-sm font-bold">...</span>
+                <span class="ml-1">ждут НГ</span>
+            </div>
+        </div>
+
         <!-- Header -->
         <div class="text-center mb-10 w-full mt-8">
             <h1 class="text-4xl sm:text-6xl md:text-7xl mb-2 gold-text leading-tight drop-shadow-xl transform hover:scale-105 transition duration-500 cursor-default">
@@ -240,10 +279,9 @@
 
         let myUid = null;
 
-        // --- Real-time Presence Logic ---
+        // --- Real-time Presence Logic (Strict 2 seconds) ---
         async function initPresence() {
             try {
-                // 1. Auth Anonymous
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -259,7 +297,6 @@
                 });
             } catch (e) {
                 console.error("Auth failed:", e);
-                // Fallback for UI if auth fails
                 document.getElementById('online-count').innerText = "1";
             }
         }
@@ -268,46 +305,38 @@
             if (!myUid) return;
             const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', myUid);
             
-            // Send heartbeat immediately and then every 5s
             const beat = () => {
+                // Heartbeat every 2 seconds
                 setDoc(presenceRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
             };
             beat();
-            setInterval(beat, 5000);
+            setInterval(beat, 2000); 
         }
 
         function listenToPresence() {
             const presenceColl = collection(db, 'artifacts', appId, 'public', 'data', 'presence');
             
-            // Listen to ALL documents in presence
+            // Listen to updates
             onSnapshot(presenceColl, (snapshot) => {
                 const now = Date.now();
                 let activeCount = 0;
                 
                 snapshot.forEach(docSnap => {
                     const data = docSnap.data();
-                    // Count user if seen in last 15 seconds (buffer for network lag)
-                    if (data && data.lastSeen && (now - data.lastSeen < 15000)) {
+                    // Very strict: User is online if seen in the last 4 seconds
+                    // (2s interval + 2s buffer for latency)
+                    if (data && data.lastSeen && (now - data.lastSeen < 4000)) {
                         activeCount++;
                     }
                 });
 
-                updateOnlineUI(activeCount);
+                // If count is 0 (unlikely if self is online), show 1
+                if (activeCount < 1) activeCount = 1;
+                
+                document.getElementById('online-count').innerText = activeCount;
             }, (error) => {
                 console.error("Presence listen error:", error);
             });
-        }
-
-        function updateOnlineUI(count) {
-            const el = document.getElementById('online-count');
-            // Animate only if number changes
-            if (el.innerText != count) {
-                el.style.opacity = 0;
-                setTimeout(() => {
-                    el.innerText = count;
-                    el.style.opacity = 1;
-                }, 200);
-            }
         }
 
         // Start system
@@ -324,7 +353,7 @@
             let nextYear = now.getFullYear() + 1;
             targetDate = new Date(`January 1, ${nextYear} 00:00:00`);
             document.getElementById('year-label').innerText = `ЖДЕМ ${nextYear}`;
-            updateTimer(); // Instant update
+            updateTimer();
         }
 
         function updateTimer() {
@@ -362,115 +391,111 @@
         setInterval(updateTimer, 1000);
         setTargetDate();
 
-        // --- Snow Logic ---
+        // --- Robust Snow Logic (CSS-based) ---
         function createSnowflake() {
             const container = document.getElementById('snow-container');
-            if (container.childElementCount > 60) return; // Limit for performance
+            // Strict limit to prevent memory leaks, but enough for density
+            if (container.childElementCount > 80) return;
 
             const el = document.createElement('div');
             el.innerHTML = Math.random() > 0.5 ? '❄' : '•';
             el.className = 'snowflake';
-            el.style.left = Math.random() * 100 + 'vw';
-            el.style.opacity = Math.random() * 0.5 + 0.3;
-            el.style.fontSize = (Math.random() * 10 + 10) + 'px';
             
-            const duration = Math.random() * 5 + 5;
-            el.style.transition = `top ${duration}s linear, opacity ${duration}s ease-in`;
+            // Random properties
+            const startLeft = Math.random() * 100; // vw
+            const duration = Math.random() * 5 + 5; // 5-10s
+            const size = Math.random() * 1.5 + 0.5; // Rem
+            
+            el.style.left = startLeft + 'vw';
+            el.style.fontSize = size + 'rem';
+            el.style.opacity = Math.random() * 0.7 + 0.3;
+            el.style.animation = `fall ${duration}s linear`;
+            
+            // Remove after animation ends
+            el.addEventListener('animationend', () => {
+                el.remove();
+            });
             
             container.appendChild(el);
-
-            requestAnimationFrame(() => {
-                el.style.top = '105vh';
-            });
-
-            setTimeout(() => el.remove(), duration * 1000);
         }
-        setInterval(createSnowflake, 300);
+        
+        // Generate flakes frequently
+        setInterval(createSnowflake, 200);
 
-        // --- Music Logic ---
+
+        // --- Music Logic & Volume ---
         const audio = document.getElementById('bg-music');
         const musicBtn = document.getElementById('music-btn');
         const musicIcon = document.getElementById('music-icon');
+        const volumeContainer = document.getElementById('volume-container');
+        const volumeSlider = document.getElementById('volume-slider');
+        const audioPanel = document.getElementById('audio-panel');
         let isPlaying = false;
 
         audio.volume = 0.5;
 
-        // Custom Toast Function
-        function showMusicToast() {
-            const container = document.getElementById('toast-container');
-            if (isPlaying) return;
+        volumeSlider.addEventListener('input', (e) => {
+            audio.volume = e.target.value;
+        });
 
-            const toast = document.createElement('div');
-            toast.className = 'glass-panel p-4 rounded-xl flex items-center gap-4 text-sm toast-enter max-w-[300px] border border-green-500/30';
-            
-            toast.innerHTML = `
-                <div class="text-2xl">🎄</div>
-                <div class="flex-1">
-                    <p class="font-bold text-white mb-1">Новогоднее настроение?</p>
-                    <p class="text-gray-400 text-xs">Включить музыку?</p>
-                </div>
-                <button id="toast-play-btn" class="bg-green-600 hover:bg-green-500 text-white p-2 rounded-lg transition shadow-lg">
-                    <i class="fas fa-play text-xs"></i>
-                </button>
-                <button id="toast-close-btn" class="text-gray-500 hover:text-white p-1">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-
-            container.appendChild(toast);
-
-            requestAnimationFrame(() => toast.classList.remove('toast-enter'));
-            requestAnimationFrame(() => toast.classList.add('toast-enter-active'));
-
-            toast.querySelector('#toast-play-btn').onclick = () => {
-                toggleMusic();
-                removeToast(toast);
-            };
-            toast.querySelector('#toast-close-btn').onclick = () => {
-                removeToast(toast);
-            };
-
-            setTimeout(() => { if(toast.parentNode) removeToast(toast); }, 10000);
-        }
-
-        function removeToast(toast) {
-            toast.classList.remove('toast-enter-active');
-            toast.classList.add('toast-exit-active');
-            setTimeout(() => toast.remove(), 300);
-        }
+        // Hover effect to show slider
+        audioPanel.addEventListener('mouseenter', () => {
+            volumeContainer.classList.remove('w-0');
+            volumeContainer.classList.add('w-28');
+        });
+        audioPanel.addEventListener('mouseleave', () => {
+            // Only hide if we aren't interacting with it, but simple hover is safer for now
+            volumeContainer.classList.remove('w-28');
+            volumeContainer.classList.add('w-0');
+        });
 
         window.toggleMusic = function() {
             if (isPlaying) {
                 audio.pause();
                 musicIcon.className = "fas fa-volume-mute";
-                musicBtn.classList.remove('music-playing', 'text-green-400');
+                musicBtn.classList.remove('text-green-400');
                 musicBtn.classList.add('text-gray-400');
+                // Force hide slider if muted to indicate "off" status? Optional.
             } else {
-                // Try to play
-                const playPromise = audio.play();
-                
-                if (playPromise !== undefined) {
-                    playPromise.then(_ => {
-                        // Playback started
-                        musicIcon.className = "fas fa-volume-up";
-                        musicBtn.classList.add('music-playing', 'text-green-400');
-                        musicBtn.classList.remove('text-gray-400');
-                    })
-                    .catch(error => {
-                        console.log("Playback prevented:", error);
-                        // Show a small hint if autoplay was blocked and this was a programmed trigger,
-                        // but since this is usually called by button click, it should be fine.
-                        // However, if the file is missing, we might want to alert the user.
-                        if(error.name === "NotSupportedError" || error.message.includes("format")) {
-                             alert("Не удалось воспроизвести. Проверьте файл music.mp3");
-                        }
-                    });
-                }
+                audio.play().catch(error => {
+                    console.log("Playback prevented:", error);
+                    alert("Взаимодействие необходимо для воспроизведения музыки.");
+                });
+                musicIcon.className = "fas fa-volume-up";
+                musicBtn.classList.add('text-green-400');
+                musicBtn.classList.remove('text-gray-400');
+                // Auto show slider when turning on
+                volumeContainer.classList.remove('w-0');
+                volumeContainer.classList.add('w-28');
             }
             isPlaying = !isPlaying;
         }
 
-        // Show toast after 2 seconds
+        // Initial hint toast
+        function showMusicToast() {
+            if (isPlaying) return;
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'glass-panel p-4 rounded-xl flex items-center gap-4 text-sm toast-enter max-w-[300px] border border-green-500/30';
+            toast.innerHTML = `
+                <div class="text-2xl">🎵</div>
+                <div class="flex-1"><p class="font-bold text-white">Включить музыку?</p></div>
+                <button id="toast-play" class="bg-green-600 px-3 py-1 rounded text-white text-xs">Да</button>
+                <button id="toast-close" class="text-gray-400 px-2"><i class="fas fa-times"></i></button>
+            `;
+            container.appendChild(toast);
+            
+            requestAnimationFrame(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-enter-active');
+            });
+
+            toast.querySelector('#toast-play').onclick = () => { toggleMusic(); toast.remove(); };
+            toast.querySelector('#toast-close').onclick = () => { toast.remove(); };
+            
+            setTimeout(() => { if(toast.parentNode) toast.remove(); }, 8000);
+        }
+
         setTimeout(showMusicToast, 2000);
 
     </script>
