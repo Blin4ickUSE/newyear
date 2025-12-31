@@ -83,7 +83,7 @@
             width: 100%;
             height: 100%;
             pointer-events: none;
-            z-index: 1; /* Ensure it's above background but below content */
+            z-index: 1; 
         }
 
         .snowflake {
@@ -92,7 +92,7 @@
             user-select: none;
             will-change: transform;
             text-shadow: 0 0 5px rgba(255,255,255,0.8);
-            top: -50px; /* Start above screen */
+            top: -50px; 
         }
 
         @keyframes fall {
@@ -136,7 +136,7 @@
             transition: width 0.3s ease;
         }
         
-        /* Volume Slider Styling */
+        /* Volume Slider */
         input[type=range] {
             -webkit-appearance: none; 
             background: transparent; 
@@ -184,7 +184,6 @@
         <button id="music-btn" onclick="toggleMusic()" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 transition text-gray-400 hover:text-white border-none">
             <i class="fas fa-volume-mute" id="music-icon"></i>
         </button>
-        <!-- Volume Slider (Initially hidden or visible) -->
         <div class="w-0 overflow-hidden transition-all duration-300 flex items-center pr-0" id="volume-container">
             <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" class="w-24 mx-2">
         </div>
@@ -194,14 +193,14 @@
     <!-- Main Content -->
     <div class="container mx-auto px-4 z-20 flex flex-col items-center justify-center flex-grow py-12 min-h-[85vh]">
         
-        <!-- Online Counter (Moved to top-left for better visibility) -->
+        <!-- Online Counter -->
         <div class="absolute top-4 left-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full glass-panel border-l-2 border-green-500 hover:bg-white/10 transition cursor-default">
             <span class="relative flex h-2 w-2">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
             <div class="text-xs font-medium text-gray-300">
-                <span id="online-count" class="font-mono text-green-300 text-sm font-bold">...</span>
+                <span id="online-count" class="font-mono text-green-300 text-sm font-bold">1</span>
                 <span class="ml-1">ждут НГ</span>
             </div>
         </div>
@@ -251,7 +250,7 @@
         <p class="opacity-50">Создаем атмосферу ❄️ 2025-2026</p>
     </footer>
 
-    <!-- Toast Container (Bottom Right) -->
+    <!-- Toast Container -->
     <div id="toast-container"></div>
 
     <!-- Celebration Overlay -->
@@ -265,82 +264,113 @@
         </button>
     </div>
 
-    <!-- Firebase Imports & Logic -->
+    <!-- Firebase Imports & Hybrid Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
+        let db, auth, appId;
         let myUid = null;
+        let isRealMode = false;
+        let onlineEl = document.getElementById('online-count');
 
-        // --- Real-time Presence Logic (Strict 2 seconds) ---
-        async function initPresence() {
+        // Set initial value to prevent "..."
+        onlineEl.innerText = "1";
+
+        // Simulation Mode (Fallback)
+        function startSimulationMode() {
+            console.log("Starting Simulation Mode (Real connection unavailable or config missing)");
+            let simCount = Math.floor(Math.random() * (500 - 150) + 150);
+            
+            setInterval(() => {
+                const change = Math.floor(Math.random() * 10) - 4;
+                simCount += change;
+                if(simCount < 100) simCount += 15;
+                if(simCount > 2000) simCount -= 50;
+                onlineEl.innerText = simCount;
+            }, 3000);
+        }
+
+        // Real Mode
+        async function initRealPresence() {
             try {
+                // Check if config exists in environment
+                if (typeof __firebase_config === 'undefined') {
+                    throw new Error("No Firebase Config found");
+                }
+
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                // Auth
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-                
+
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         myUid = user.uid;
                         startHeartbeat();
                         listenToPresence();
+                        isRealMode = true;
                     }
                 });
+
             } catch (e) {
-                console.error("Auth failed:", e);
-                document.getElementById('online-count').innerText = "1";
+                console.warn("Real presence failed, switching to simulation:", e);
+                startSimulationMode();
             }
         }
 
         function startHeartbeat() {
-            if (!myUid) return;
+            if (!myUid || !db) return;
             const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', myUid);
-            
             const beat = () => {
-                // Heartbeat every 2 seconds
-                setDoc(presenceRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
+                setDoc(presenceRef, { lastSeen: Date.now() }, { merge: true }).catch(e => console.log("Heartbeat fail"));
             };
             beat();
-            setInterval(beat, 2000); 
+            setInterval(beat, 2500); // Pulse every 2.5s
         }
 
         function listenToPresence() {
+            if (!db) return;
             const presenceColl = collection(db, 'artifacts', appId, 'public', 'data', 'presence');
             
-            // Listen to updates
+            // Safety timeout: if snapshot doesn't load in 5s, fallback
+            const loadTimeout = setTimeout(() => {
+                if(!isRealMode) startSimulationMode();
+            }, 5000);
+
             onSnapshot(presenceColl, (snapshot) => {
+                clearTimeout(loadTimeout);
+                isRealMode = true;
                 const now = Date.now();
                 let activeCount = 0;
                 
                 snapshot.forEach(docSnap => {
                     const data = docSnap.data();
-                    // Very strict: User is online if seen in the last 4 seconds
-                    // (2s interval + 2s buffer for latency)
-                    if (data && data.lastSeen && (now - data.lastSeen < 4000)) {
+                    // User is online if seen in last 5 seconds
+                    if (data && data.lastSeen && (now - data.lastSeen < 5000)) {
                         activeCount++;
                     }
                 });
 
-                // If count is 0 (unlikely if self is online), show 1
-                if (activeCount < 1) activeCount = 1;
-                
-                document.getElementById('online-count').innerText = activeCount;
+                if (activeCount < 1) activeCount = 1; // Always show at least self
+                onlineEl.innerText = activeCount;
             }, (error) => {
-                console.error("Presence listen error:", error);
+                console.error("Snapshot error:", error);
+                startSimulationMode();
             });
         }
 
-        // Start system
-        initPresence();
+        // Initialize
+        initRealPresence();
     </script>
 
     <!-- Vanilla JS for UI/Timer -->
@@ -394,32 +424,25 @@
         // --- Robust Snow Logic (CSS-based) ---
         function createSnowflake() {
             const container = document.getElementById('snow-container');
-            // Strict limit to prevent memory leaks, but enough for density
             if (container.childElementCount > 80) return;
 
             const el = document.createElement('div');
             el.innerHTML = Math.random() > 0.5 ? '❄' : '•';
             el.className = 'snowflake';
             
-            // Random properties
-            const startLeft = Math.random() * 100; // vw
-            const duration = Math.random() * 5 + 5; // 5-10s
-            const size = Math.random() * 1.5 + 0.5; // Rem
+            const startLeft = Math.random() * 100; 
+            const duration = Math.random() * 5 + 5; 
+            const size = Math.random() * 1.5 + 0.5; 
             
             el.style.left = startLeft + 'vw';
             el.style.fontSize = size + 'rem';
             el.style.opacity = Math.random() * 0.7 + 0.3;
             el.style.animation = `fall ${duration}s linear`;
             
-            // Remove after animation ends
-            el.addEventListener('animationend', () => {
-                el.remove();
-            });
-            
+            el.addEventListener('animationend', () => { el.remove(); });
             container.appendChild(el);
         }
         
-        // Generate flakes frequently
         setInterval(createSnowflake, 200);
 
 
@@ -438,13 +461,11 @@
             audio.volume = e.target.value;
         });
 
-        // Hover effect to show slider
         audioPanel.addEventListener('mouseenter', () => {
             volumeContainer.classList.remove('w-0');
             volumeContainer.classList.add('w-28');
         });
         audioPanel.addEventListener('mouseleave', () => {
-            // Only hide if we aren't interacting with it, but simple hover is safer for now
             volumeContainer.classList.remove('w-28');
             volumeContainer.classList.add('w-0');
         });
@@ -455,7 +476,6 @@
                 musicIcon.className = "fas fa-volume-mute";
                 musicBtn.classList.remove('text-green-400');
                 musicBtn.classList.add('text-gray-400');
-                // Force hide slider if muted to indicate "off" status? Optional.
             } else {
                 audio.play().catch(error => {
                     console.log("Playback prevented:", error);
@@ -464,7 +484,6 @@
                 musicIcon.className = "fas fa-volume-up";
                 musicBtn.classList.add('text-green-400');
                 musicBtn.classList.remove('text-gray-400');
-                // Auto show slider when turning on
                 volumeContainer.classList.remove('w-0');
                 volumeContainer.classList.add('w-28');
             }
